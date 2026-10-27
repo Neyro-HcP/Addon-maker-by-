@@ -417,6 +417,126 @@ function buildRuntimeScript(config){
   ''
  ].join('\n');
 }
+
+function readPngFile(file){
+ return new Promise((resolve,reject)=>{
+  if(!file){reject(new Error("Выбери PNG-файл."));return;}
+  if(file.type!=="image/png"){reject(new Error("Нужен файл PNG."));return;}
+  if(file.size>2*1024*1024){reject(new Error("PNG больше 2 МБ."));return;}
+  const reader=new FileReader();reader.onerror=()=>reject(new Error("Не удалось прочитать файл."));
+  reader.onload=()=>resolve(String(reader.result||""));reader.readAsDataURL(file);
+ });
+}
+function creatorIdentifier(value){
+ const v=String(value||"").trim();
+ return /^[a-z0-9_.-]+:[a-z0-9_./-]+$/.test(v)&&v.split(":").length===2&&!v.includes("..");
+}
+function creatorStem(value){return String(value).replace(":","_").replace(/[^a-z0-9_.-]/g,"_");}
+function makeField(container,labelText,value,onChange,type){
+ const label=document.createElement("label");label.textContent=labelText;
+ const input=document.createElement(type==="textarea"?"textarea":"input");if(type!=="textarea")input.type=type||"text";
+ input.value=value===undefined||value===null?"":String(value);input.oninput=()=>onChange(type==="number"?Number(input.value):input.value);container.append(label,input);return input;
+}
+function makeSelect(container,labelText,value,options,onChange){
+ const label=document.createElement("label");label.textContent=labelText;const select=document.createElement("select");
+ options.forEach(pair=>{const opt=document.createElement("option");opt.value=pair[0];opt.textContent=pair[1];select.append(opt);});
+ select.value=value;select.onchange=()=>onChange(select.value);container.append(label,select);return select;
+}
+function makeImageField(container,labelText,obj,key){
+ const label=document.createElement("label");label.textContent=labelText;const input=document.createElement("input");input.type="file";input.accept="image/png";
+ input.onchange=async()=>{try{obj[key]=await readPngFile(input.files&&input.files[0]);renderCreatorLists();}catch(e){alert(e.message);}};
+ container.append(label,input);if(obj[key]){const img=document.createElement("img");img.src=obj[key];img.alt="Предпросмотр";container.append(img);}
+}
+function creatorCard(host,title){
+ const card=document.createElement("div");card.className="creator-row";const head=document.createElement("div");head.className="cardhead";
+ const b=document.createElement("b");b.textContent=title;head.append(b);card.append(head);host.append(card);return {card:card,head:head};
+}
+function removeCreatorButton(container,onClick){
+ const button=document.createElement("button");button.className="delete";button.textContent="Удалить";button.onclick=onClick;container.append(button);
+}
+function renderCreatorLists(){
+ const specs=[
+  ["customItemsList",data.customItems,"Предмет",function(o,c){
+   makeField(c,"ID",o.id,v=>o.id=v);makeField(c,"Название",o.name,v=>o.name=v);
+   makeSelect(c,"Категория",o.category||"items",[["items","Предметы"],["equipment","Снаряжение"],["nature","Природа"],["construction","Строительство"]],v=>o.category=v);
+   makeSelect(c,"Стак",String(o.stack||64),[["1","1"],["16","16"],["64","64"]],v=>o.stack=Number(v));
+   makeField(c,"Прочность (0 = без прочности)",o.durability||0,v=>o.durability=v,"number");makeImageField(c,"Заменить PNG",o,"texture");
+  }],
+  ["customBlocksList",data.customBlocks,"Блок",function(o,c){
+   makeField(c,"ID",o.id,v=>o.id=v);makeField(c,"Название",o.name,v=>o.name=v);
+   makeSelect(c,"Категория",o.category||"construction",[["construction","Строительство"],["nature","Природа"]],v=>o.category=v);
+   makeField(c,"Время добычи",o.hardness,v=>o.hardness=v,"number");makeField(c,"Сопротивление взрыву",o.resistance,v=>o.resistance=v,"number");
+   makeSelect(c,"Рендер",o.render||"opaque",[["opaque","Непрозрачный"],["cutout","Прозрачные пиксели"],["blend","Полупрозрачный"]],v=>o.render=v);makeImageField(c,"Заменить PNG",o,"texture");
+  }],
+  ["customMobsList",data.customMobs,"Моб",function(o,c){
+   makeField(c,"ID",o.id,v=>o.id=v);makeField(c,"Имя",o.name,v=>o.name=v);
+   makeField(c,"Здоровье",o.health,v=>o.health=v,"number");makeField(c,"Урон",o.damage,v=>o.damage=v,"number");
+   makeField(c,"Скорость",o.speed,v=>o.speed=v,"number");makeImageField(c,"Текстура PNG 64×64",o,"texture");
+  }]
+ ];
+ specs.forEach(spec=>{
+  const host=$(spec[0]);host.replaceChildren();
+  spec[1].forEach((obj,i)=>{
+   const made=creatorCard(host,spec[2]+" "+(i+1)+" · "+(obj.name||obj.id||"без имени"));
+   removeCreatorButton(made.head,()=>{spec[1].splice(i,1);renderCreatorLists();});spec[3](obj,made.card);
+  });
+ });
+ const th=$("textureReplacementsList");th.replaceChildren();
+ data.textureReplacements.forEach((obj,i)=>{
+  const made=creatorCard(th,"Текстура "+(i+1));removeCreatorButton(made.head,()=>{data.textureReplacements.splice(i,1);renderCreatorLists();});
+  makeField(made.card,"Путь в RP",obj.path,v=>obj.path=v);makeImageField(made.card,"Заменить PNG",obj,"texture");
+ });
+ const eh=$("extraFilesList");eh.replaceChildren();
+ data.extraFiles.forEach((obj,i)=>{
+  const made=creatorCard(eh,(obj.pack||"BP")+" / "+obj.path);
+  const edit=document.createElement("button");edit.textContent="Редактировать";edit.onclick=()=>{$("extraPack").value=obj.pack;$("extraPath").value=obj.path;$("extraContent").value=obj.content;};made.head.append(edit);
+  removeCreatorButton(made.head,()=>{data.extraFiles.splice(i,1);renderCreatorLists();});
+  const p=document.createElement("p");p.className="creator-help";p.textContent="Символов: "+String(obj.content||"").length;made.card.append(p);
+ });
+}
+$("addCustomItem").onclick=async()=>{
+ try{
+  const o={id:$("newItemId").value.trim(),name:$("newItemName").value.trim(),category:$("newItemCategory").value,stack:Number($("newItemStack").value),durability:Number($("newItemDurability").value)||0,texture:await readPngFile($("newItemTexture").files[0])};
+  if(!creatorIdentifier(o.id))throw new Error("ID должен быть в формате namespace:id (строчные латинские буквы, цифры и _.-).");
+  if(!o.name)throw new Error("Укажи название.");if(data.customItems.some(x=>x.id===o.id))throw new Error("Такой ID предмета уже есть.");
+  data.customItems.push(o);$("newItemTexture").value="";renderCreatorLists();
+ }catch(e){alert(e.message);}
+};
+$("addCustomBlock").onclick=async()=>{
+ try{
+  const o={id:$("newBlockId").value.trim(),name:$("newBlockName").value.trim(),category:$("newBlockCategory").value,hardness:Number($("newBlockHardness").value),resistance:Number($("newBlockResistance").value),render:$("newBlockRender").value,texture:await readPngFile($("newBlockTexture").files[0])};
+  if(!creatorIdentifier(o.id))throw new Error("ID должен быть в формате namespace:id (строчные латинские буквы, цифры и _.-).");
+  if(!o.name)throw new Error("Укажи название.");if(!Number.isFinite(o.hardness)||o.hardness<0||!Number.isFinite(o.resistance)||o.resistance<0)throw new Error("Проверь время добычи и сопротивление взрыву.");
+  if(data.customBlocks.some(x=>x.id===o.id))throw new Error("Такой ID блока уже есть.");data.customBlocks.push(o);$("newBlockTexture").value="";renderCreatorLists();
+ }catch(e){alert(e.message);}
+};
+$("addCustomMob").onclick=async()=>{
+ try{
+  const texture=await readPngFile($("newMobTexture").files[0]);const img=new Image();
+  const size=await new Promise((resolve,reject)=>{img.onload=()=>resolve([img.naturalWidth,img.naturalHeight]);img.onerror=()=>reject(new Error("Не удалось проверить размеры текстуры."));img.src=texture;});
+  if(size[0]!==64||size[1]!==64)throw new Error("Текстура гуманоидного моба должна быть ровно 64×64.");
+  const o={id:$("newMobId").value.trim(),name:$("newMobName").value.trim(),health:Number($("newMobHealth").value),damage:Number($("newMobDamage").value),speed:Number($("newMobSpeed").value),texture:texture};
+  if(!creatorIdentifier(o.id))throw new Error("ID должен быть в формате namespace:id (строчные латинские буквы, цифры и _.-).");
+  if(!o.name)throw new Error("Укажи имя моба.");if(!Number.isFinite(o.health)||o.health<1||!Number.isFinite(o.damage)||o.damage<0||!Number.isFinite(o.speed)||o.speed<=0)throw new Error("Проверь здоровье, урон и скорость.");
+  if(data.customMobs.some(x=>x.id===o.id))throw new Error("Такой ID моба уже есть.");data.customMobs.push(o);$("newMobTexture").value="";renderCreatorLists();
+ }catch(e){alert(e.message);}
+};
+$("addTextureReplacement").onclick=async()=>{
+ try{
+  const path=$("texturePath").value.trim().replace(/^\/+/,"");const texture=await readPngFile($("replacementTexture").files[0]);
+  if(!path.startsWith("textures/")||!path.endsWith(".png")||path.includes("..")||path.includes("\\"))throw new Error("Путь должен начинаться с textures/ и заканчиваться на .png.");
+  if(data.textureReplacements.some(x=>x.path===path))throw new Error("Такой путь уже добавлен.");data.textureReplacements.push({path:path,texture:texture});$("replacementTexture").value="";renderCreatorLists();
+ }catch(e){alert(e.message);}
+};
+$("addExtraFile").onclick=()=>{
+ const pack=$("extraPack").value,path=$("extraPath").value.trim().replace(/^\/+/,""),content=$("extraContent").value;
+ if(!path||path.includes("..")||path.includes("\\")||path.endsWith("/")){alert("Укажи безопасный относительный путь без .. и обратных слешей.");return;}
+ const reserved=path==="manifest.json"||(pack==="BP"&&path==="scripts/main.js")||(pack==="BP"&&path.startsWith("items/")&&data.customItems.length)||(pack==="BP"&&path.startsWith("blocks/")&&data.customBlocks.length)||(pack==="BP"&&path.startsWith("entities/")&&data.customMobs.length)||(pack==="RP"&&(path==="textures/item_texture.json"||path==="textures/terrain_texture.json"||path==="texts/languages.json"));
+ if(reserved){alert("Этот путь создаётся автоматически. Выбери другой путь, чтобы не сломать пакет.");return;}
+ const old=data.extraFiles.find(x=>x.pack===pack&&x.path===path);if(old)old.content=content;else data.extraFiles.push({pack:pack,path:path,content:content});renderCreatorLists();
+};
+$("clearExtraFile").onclick=()=>{$("extraPath").value="";$("extraContent").value="";};
+
 function createAddonUuid(){
  if(globalThis.crypto && typeof crypto.randomUUID==="function") return crypto.randomUUID();
  const bytes=new Uint8Array(16);
