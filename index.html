@@ -565,8 +565,62 @@ $('mcaddon').onclick=async()=>{
   zip.file(bp+"/manifest.json",JSON.stringify(bpManifest,null,2));
   zip.file(bp+"/scripts/main.js",buildRuntimeScript(config));
   zip.file(rp+"/manifest.json",JSON.stringify(rpManifest,null,2));
+
   let imageCount=0;
-  for(let i=0;i<data.buttons.length;i++){
+  function writePng(path,value,label){
+   const source=String(value||""),prefix="data:image/png;base64,";
+   if(!source.startsWith(prefix))throw new Error("Проверь PNG-файл: "+label);
+   zip.file(rp+"/"+path,source.slice(prefix.length),{base64:true});imageCount++;
+  }
+  function checkedId(object,kind){
+   if(!creatorIdentifier(object.id))throw new Error("Неверный ID "+kind+": "+object.id);
+   return creatorStem(object.id);
+  }
+  const itemAtlas={resource_pack_name:packName,texture_name:"atlas.items",texture_data:{}};
+  const blockAtlas={resource_pack_name:packName,texture_name:"atlas.terrain",padding:8,num_mip_levels:4,texture_data:{}};
+  const translations=[];
+  data.customItems.forEach(item=>{
+   const stem=checkedId(item,"предмета");if(!item.texture)throw new Error("Добавь PNG для предмета "+item.id);
+   const texturePath="textures/items/"+stem;itemAtlas.texture_data[item.id]={textures:texturePath};
+   const components={"minecraft:max_stack_size":Math.max(1,Math.min(64,Number(item.stack)||64)),"minecraft:icon":item.id,"minecraft:display_name":{"value":String(item.name||item.id)}};
+   if(Number(item.durability)>0)components["minecraft:durability"]={"max_durability":Math.max(1,Math.floor(Number(item.durability)))};
+   const definition={"format_version":"1.20.60","minecraft:item":{"description":{"identifier":item.id,"menu_category":{"category":item.category||"items"}},"components":components}};
+   zip.file(bp+"/items/"+stem+".json",JSON.stringify(definition,null,2));writePng(texturePath+".png",item.texture,"предмет "+item.id);
+   translations.push("item."+item.id+"="+String(item.name||item.id));
+  });
+  if(data.customItems.length)zip.file(rp+"/textures/item_texture.json",JSON.stringify(itemAtlas,null,2));
+  data.customBlocks.forEach(block=>{
+   const stem=checkedId(block,"блока");if(!block.texture)throw new Error("Добавь PNG для блока "+block.id);
+   const texturePath="textures/blocks/"+stem;blockAtlas.texture_data[block.id]={textures:texturePath};
+   const definition={"format_version":"1.20.50","minecraft:block":{"description":{"identifier":block.id,"menu_category":{"category":block.category||"construction"}},"components":{"minecraft:geometry":"minecraft:geometry.full_block","minecraft:material_instances":{"*":{"texture":block.id,"render_method":block.render||"opaque"}},"minecraft:destructible_by_mining":{"seconds_to_destroy":Math.max(0,Number(block.hardness)||0)},"minecraft:destructible_by_explosion":{"explosion_resistance":Math.max(0,Number(block.resistance)||0)}}}};
+   zip.file(bp+"/blocks/"+stem+".json",JSON.stringify(definition,null,2));writePng(texturePath+".png",block.texture,"блок "+block.id);
+   translations.push("tile."+block.id+"="+String(block.name||block.id));
+  });
+  if(data.customBlocks.length)zip.file(rp+"/textures/terrain_texture.json",JSON.stringify(blockAtlas,null,2));
+  if(data.customMobs.length){
+   const geometry={"format_version":"1.12.0","minecraft:geometry":[{"description":{"identifier":"geometry.addonmaker_humanoid","texture_width":64,"texture_height":64,"visible_bounds_width":1.5,"visible_bounds_height":2.7,"visible_bounds_offset":[0,1.2,0]},"bones":[{"name":"head","pivot":[0,24,0],"cubes":[{"origin":[-4,24,-4],"size":[8,8,8],"uv":[0,0]}]},{"name":"body","pivot":[0,24,0],"cubes":[{"origin":[-4,12,-2],"size":[8,12,4],"uv":[16,16]}]},{"name":"right_arm","pivot":[-5,22,0],"cubes":[{"origin":[-8,10,-2],"size":[4,12,4],"uv":[40,16]}]},{"name":"left_arm","pivot":[5,22,0],"cubes":[{"origin":[4,10,-2],"size":[4,12,4],"uv":[32,48]}]},{"name":"right_leg","pivot":[-2,12,0],"cubes":[{"origin":[-4,0,-2],"size":[4,12,4],"uv":[0,16]}]},{"name":"left_leg","pivot":[2,12,0],"cubes":[{"origin":[0,0,-2],"size":[4,12,4],"uv":[16,48]}]}]}]};
+   zip.file(rp+"/models/entity/addonmaker_humanoid.geo.json",JSON.stringify(geometry,null,2));
+  }
+  data.customMobs.forEach(mob=>{
+   const stem=checkedId(mob,"моба");if(!mob.texture)throw new Error("Добавь PNG 64×64 для моба "+mob.id);
+   const entityBP={"format_version":"1.20.50","minecraft:entity":{"description":{"identifier":mob.id,"is_spawnable":true,"is_summonable":true,"is_experimental":false},"components":{"minecraft:type_family":{"family":["mob"]},"minecraft:nameable":{},"minecraft:health":{"value":Number(mob.health),"max":Number(mob.health)},"minecraft:movement":{"value":Number(mob.speed)},"minecraft:movement.basic":{},"minecraft:navigation.walk":{"can_path_over_water":true,"avoid_water":true},"minecraft:jump.static":{},"minecraft:physics":{},"minecraft:pushable":{"is_pushable":true,"is_pushable_by_piston":true},"minecraft:collision_box":{"width":0.6,"height":1.8},"minecraft:behavior.float":{"priority":0},"minecraft:behavior.random_stroll":{"priority":1,"speed_multiplier":1},"minecraft:behavior.look_at_player":{"priority":2,"look_distance":8},"minecraft:behavior.random_look_around":{"priority":3}}}};
+   const client={"format_version":"1.10.0","minecraft:client_entity":{"description":{"identifier":mob.id,"materials":{"default":"entity_alphatest"},"textures":{"default":"textures/entity/"+stem},"geometry":{"default":"geometry.addonmaker_humanoid"},"render_controllers":["controller.render.default"],"spawn_egg":{"base_color":"#4c3b8f","overlay_color":"#b5a5ff"}}}};
+   zip.file(bp+"/entities/"+stem+".json",JSON.stringify(entityBP,null,2));zip.file(rp+"/entity/"+stem+".entity.json",JSON.stringify(client,null,2));
+   writePng("textures/entity/"+stem+".png",mob.texture,"моб "+mob.id);translations.push("entity."+mob.id+".name="+String(mob.name||mob.id));
+  });
+  if(translations.length){
+   zip.file(rp+"/texts/en_US.lang",translations.join("\n")+"\n");zip.file(rp+"/texts/ru_RU.lang",translations.join("\n")+"\n");
+   zip.file(rp+"/texts/languages.json",JSON.stringify(["en_US","ru_RU"],null,2));
+  }
+  data.textureReplacements.forEach(item=>{
+   if(!item.path||!item.path.startsWith("textures/")||!item.path.endsWith(".png")||item.path.includes("..")||item.path.indexOf(String.fromCharCode(92))>=0)throw new Error("Неверный путь замены текстуры: "+item.path);
+   writePng(item.path,item.texture,item.path);
+  });
+  data.extraFiles.forEach(file=>{
+   if(!file.path||file.path.includes("..")||file.path.startsWith("/")||file.path.indexOf(String.fromCharCode(92))>=0)throw new Error("Небезопасный путь файла: "+file.path);
+   zip.file((file.pack==="RP"?rp:bp)+"/"+file.path,String(file.content||""));
+  });
+
    const image=data.buttons[i].image;
    if(!image) continue;
    const match=/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(image);
