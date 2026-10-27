@@ -35,6 +35,7 @@ button:disabled{opacity:.4}
 .mbtn span{overflow-wrap:anywhere}
 small,.muted{font-size:12px;color:var(--muted)}
 footer{padding:15px;text-align:center;color:var(--muted);font-size:12px}
+.creator-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.creator-panel{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:14px;background:#191b24}.creator-panel h3{margin-top:0}.creator-row{border:1px solid #393b4b;border-radius:9px;padding:10px;margin-top:9px}.creator-row img{width:64px;height:64px;object-fit:contain;background:#11131a;border:1px solid var(--line);border-radius:7px;margin-top:8px}.creator-help{color:#c0c2d4;font-size:12px;line-height:1.45}.codebox{min-height:130px;font:12px ui-monospace,monospace}@media(max-width:760px){.creator-grid{grid-template-columns:1fr}}
 @media(max-width:760px){main{grid-template-columns:1fr;padding:9px;gap:10px}section{padding:12px}header{font-size:17px}}
 </style>
 </head>
@@ -104,6 +105,29 @@ footer{padding:15px;text-align:center;color:var(--muted);font-size:12px}
 </div>
 <h3>Информация</h3>
 <p class="muted">Заголовок, описание, названия кнопок и картинки обновляются сразу. Отдельные описания кнопок в стандартном ActionFormData Minecraft не поддерживаются.</p>
+<div class="creator-panel">
+ <h3>Конструктор предметов</h3><p class="creator-help">Создаёт новый предмет с PNG-значком, ID, названием, размером стака и прочностью. PNG до 2 МБ. Для сложных механик используй редактор файлов ниже.</p>
+ <div class="creator-grid"><div><label for="newItemId">ID (namespace:id)</label><input id="newItemId" value="addon:crystal"></div><div><label for="newItemName">Название</label><input id="newItemName" value="Кристалл"></div>
+ <div><label for="newItemCategory">Раздел инвентаря</label><select id="newItemCategory"><option value="items">Предметы</option><option value="equipment">Снаряжение</option><option value="nature">Природа</option><option value="construction">Строительство</option></select></div><div><label for="newItemStack">Максимум в стаке</label><select id="newItemStack"><option value="1">1</option><option value="16">16</option><option value="64" selected>64</option></select></div><div><label for="newItemDurability">Прочность (0 = нет)</label><input id="newItemDurability" type="number" min="0" max="10000" value="0"></div><div><label for="newItemTexture">PNG-значок</label><input id="newItemTexture" type="file" accept="image/png"></div></div>
+ <div class="actions"><button id="addCustomItem" class="primary">+ Добавить предмет</button></div><div id="customItemsList"></div></div>
+<div class="creator-panel">
+ <h3>Конструктор блоков</h3><p class="creator-help">Создаёт кубический блок с одной текстурой на все стороны. Для отдельных текстур сторон и сложной геометрии используй расширенный редактор. Рекомендуется PNG 16×16, 32×32 или 64×64.</p>
+ <div class="creator-grid"><div><label for="newBlockId">ID (namespace:id)</label><input id="newBlockId" value="addon:crystal_block"></div><div><label for="newBlockName">Название</label><input id="newBlockName" value="Кристальный блок"></div>
+ <div><label for="newBlockCategory">Раздел инвентаря</label><select id="newBlockCategory"><option value="construction">Строительство</option><option value="nature">Природа</option></select></div><div><label for="newBlockHardness">Время добычи в секундах</label><input id="newBlockHardness" type="number" min="0" max="999" step="0.1" value="1"></div><div><label for="newBlockResistance">Сопротивление взрыву</label><input id="newBlockResistance" type="number" min="0" max="99999" step="0.5" value="5"></div><div><label for="newBlockRender">Прозрачность</label><select id="newBlockRender"><option value="opaque">Непрозрачный</option><option value="cutout">Прозрачные пиксели</option><option value="blend">Полупрозрачный</option></select></div><div><label for="newBlockTexture">PNG-текстура</label><input id="newBlockTexture" type="file" accept="image/png"></div></div>
+ <div class="actions"><button id="addCustomBlock" class="primary">+ Добавить блок</button></div><div id="customBlocksList"></div></div>
+<div class="creator-panel">
+ <h3>Конструктор мобов</h3><p class="creator-help">Создаёт гуманоидного моба с ID, текстурой PNG 64×64, здоровьем, уроном и скоростью. Базовое поведение — охота на игроков. Для сложных моделей, анимаций, звуков и дропа используй JSON-файлы ниже.</p>
+ <div class="creator-grid"><div><label for="newMobId">ID (namespace:id)</label><input id="newMobId" value="addon:crystal_guard"></div><div><label for="newMobName">Имя моба</label><input id="newMobName" value="Кристальный страж"></div><div><label for="newMobHealth">Здоровье</label><input id="newMobHealth" type="number" min="1" max="10000" value="20"></div><div><label for="newMobDamage">Урон</label><input id="newMobDamage" type="number" min="0" max="1000" step="0.5" value="3"></div><div><label for="newMobSpeed">Скорость движения</label><input id="newMobSpeed" type="number" min="0.05" max="2" step="0.05" value="0.25"></div><div><label for="newMobTexture">PNG-текстура строго 64×64</label><input id="newMobTexture" type="file" accept="image/png"></div></div>
+ <div class="actions"><button id="addCustomMob" class="primary">+ Добавить моба</button></div><div id="customMobsList"></div></div>
+<div class="creator-panel">
+ <h3>Замена существующих текстур</h3><p class="creator-help">Загружает PNG в путь Resource Pack. Для замены ванильной текстуры путь и регистр букв должны совпасть с путём в исходном паке Minecraft. Примеры: textures/entity/zombie/zombie.png, textures/entity/creeper/creeper.png, textures/items/diamond.png, textures/blocks/stone.png. Путь может различаться в разных версиях.</p>
+ <label for="texturePath">Путь в RP (начиная с textures/)</label><input id="texturePath" value="textures/entity/zombie/zombie.png"><label for="replacementTexture">Новая PNG-текстура</label><input id="replacementTexture" type="file" accept="image/png">
+ <div class="actions"><button id="addTextureReplacement" class="primary">+ Добавить замену</button></div><div id="textureReplacementsList"></div></div>
+<div class="creator-panel">
+ <h3>Расширенный редактор файлов BP / RP</h3><p class="creator-help">Добавляй JSON сущностей, рецепты, таблицы лута, функции .mcfunction, языковые файлы, анимации и другие текстовые ресурсы. Путь задаётся относительно пака. Не добавляй сюда manifest.json и scripts/main.js — они создаются автоматически.</p>
+ <div class="creator-grid"><div><label for="extraPack">Пак</label><select id="extraPack"><option value="BP">Behavior Pack (BP)</option><option value="RP">Resource Pack (RP)</option></select></div><div><label for="extraPath">Относительный путь файла</label><input id="extraPath" value="entities/my_entity.json" placeholder="Например: recipes/my_recipe.json"></div></div>
+ <label for="extraContent">Содержимое файла</label><textarea class="codebox" id="extraContent" spellcheck="false" placeholder="Полный JSON, JavaScript, .mcfunction или текст"></textarea>
+ <div class="actions"><button id="addExtraFile" class="primary">+ Добавить / сохранить файл</button><button id="clearExtraFile">Очистить редактор</button></div><div id="extraFilesList"></div></div>
 </section>
 </main>
 <footer>Addon Maker by НсП · Web Edition</footer>
@@ -121,6 +145,11 @@ let data={
  trigger:'item',
  itemid:'minecraft:compass',
  tagid:'menu_admin',
+ customItems:[],
+ customBlocks:[],
+ customMobs:[],
+ textureReplacements:[],
+ extraFiles:[],
  buttons:[
   {id:1,label:'Сесть',image:'',action:'message',value:'Вы выбрали действие: сесть'},
   {id:2,label:'Прыгнуть',image:'',action:'message',value:'Вы выбрали действие: прыгнуть'},
@@ -145,6 +174,11 @@ function readForm(){
  data.tagid=$('tagid').value;
 }
 function render(){
+ data.customItems=Array.isArray(data.customItems)?data.customItems:[];
+ data.customBlocks=Array.isArray(data.customBlocks)?data.customBlocks:[];
+ data.customMobs=Array.isArray(data.customMobs)?data.customMobs:[];
+ data.textureReplacements=Array.isArray(data.textureReplacements)?data.textureReplacements:[];
+ data.extraFiles=Array.isArray(data.extraFiles)?data.extraFiles:[];
  $('packname').value=data.packname||'Addon Maker — мой аддон';
  $('packdescription').value=data.packdescription||'Создано в Addon Maker by НсП';
  $('title').value=data.title;
@@ -225,6 +259,7 @@ function render(){
   list.append(card);
  });
  preview();
+ renderCreatorLists();
 }
 function preview(){
  $('ptitle').textContent=data.title;
