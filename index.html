@@ -116,8 +116,8 @@ footer{padding:15px;text-align:center;color:var(--muted);font-size:12px}
  <div><label for="newBlockCategory">Раздел инвентаря</label><select id="newBlockCategory"><option value="construction">Строительство</option><option value="nature">Природа</option></select></div><div><label for="newBlockHardness">Время добычи в секундах</label><input id="newBlockHardness" type="number" min="0" max="999" step="0.1" value="1"></div><div><label for="newBlockResistance">Сопротивление взрыву</label><input id="newBlockResistance" type="number" min="0" max="99999" step="0.5" value="5"></div><div><label for="newBlockRender">Прозрачность</label><select id="newBlockRender"><option value="opaque">Непрозрачный</option><option value="cutout">Прозрачные пиксели</option><option value="blend">Полупрозрачный</option></select></div><div><label for="newBlockTexture">PNG-текстура</label><input id="newBlockTexture" type="file" accept="image/png"></div></div>
  <div class="actions"><button id="addCustomBlock" class="primary">+ Добавить блок</button></div><div id="customBlocksList"></div></div>
 <div class="creator-panel">
- <h3>Конструктор мобов</h3><p class="creator-help">Создаёт гуманоидного моба с ID, текстурой PNG 64×64, здоровьем, уроном и скоростью. Базовое поведение — охота на игроков. Для сложных моделей, анимаций, звуков и дропа используй JSON-файлы ниже.</p>
- <div class="creator-grid"><div><label for="newMobId">ID (namespace:id)</label><input id="newMobId" value="addon:crystal_guard"></div><div><label for="newMobName">Имя моба</label><input id="newMobName" value="Кристальный страж"></div><div><label for="newMobHealth">Здоровье</label><input id="newMobHealth" type="number" min="1" max="10000" value="20"></div><div><label for="newMobDamage">Урон</label><input id="newMobDamage" type="number" min="0" max="1000" step="0.5" value="3"></div><div><label for="newMobSpeed">Скорость движения</label><input id="newMobSpeed" type="number" min="0.05" max="2" step="0.05" value="0.25"></div><div><label for="newMobTexture">PNG-текстура строго 64×64</label><input id="newMobTexture" type="file" accept="image/png"></div></div>
+ <h3>Конструктор мобов</h3><p class="creator-help">Создаёт гуманоидного моба с ID, текстурой PNG 64×64, здоровьем и скоростью. Базовый шаблон нейтральный; поведение можно настраивать через редактор файлов. Для сложных моделей, анимаций, звуков и дропа используй JSON-файлы ниже.</p>
+ <div class="creator-grid"><div><label for="newMobId">ID (namespace:id)</label><input id="newMobId" value="addon:crystal_guard"></div><div><label for="newMobName">Имя моба</label><input id="newMobName" value="Кристальный страж"></div><div><label for="newMobHealth">Здоровье</label><input id="newMobHealth" type="number" min="1" max="10000" value="20"></div><div><label for="newMobSpeed">Скорость движения</label><input id="newMobSpeed" type="number" min="0.05" max="2" step="0.05" value="0.25"></div><div><label for="newMobTexture">PNG-текстура строго 64×64</label><input id="newMobTexture" type="file" accept="image/png"></div></div>
  <div class="actions"><button id="addCustomMob" class="primary">+ Добавить моба</button></div><div id="customMobsList"></div></div>
 <div class="creator-panel">
  <h3>Замена существующих текстур</h3><p class="creator-help">Загружает PNG в путь Resource Pack. Для замены ванильной текстуры путь и регистр букв должны совпасть с путём в исходном паке Minecraft. Примеры: textures/entity/zombie/zombie.png, textures/entity/creeper/creeper.png, textures/items/diamond.png, textures/blocks/stone.png. Путь может различаться в разных версиях.</p>
@@ -470,7 +470,7 @@ function renderCreatorLists(){
   }],
   ["customMobsList",data.customMobs,"Моб",function(o,c){
    makeField(c,"ID",o.id,v=>o.id=v);makeField(c,"Имя",o.name,v=>o.name=v);
-   makeField(c,"Здоровье",o.health,v=>o.health=v,"number");makeField(c,"Урон",o.damage,v=>o.damage=v,"number");
+   makeField(c,"Здоровье",o.health,v=>o.health=v,"number");
    makeField(c,"Скорость",o.speed,v=>o.speed=v,"number");makeImageField(c,"Текстура PNG 64×64",o,"texture");
   }]
  ];
@@ -515,9 +515,9 @@ $("addCustomMob").onclick=async()=>{
   const texture=await readPngFile($("newMobTexture").files[0]);const img=new Image();
   const size=await new Promise((resolve,reject)=>{img.onload=()=>resolve([img.naturalWidth,img.naturalHeight]);img.onerror=()=>reject(new Error("Не удалось проверить размеры текстуры."));img.src=texture;});
   if(size[0]!==64||size[1]!==64)throw new Error("Текстура гуманоидного моба должна быть ровно 64×64.");
-  const o={id:$("newMobId").value.trim(),name:$("newMobName").value.trim(),health:Number($("newMobHealth").value),damage:Number($("newMobDamage").value),speed:Number($("newMobSpeed").value),texture:texture};
+  const o={id:$("newMobId").value.trim(),name:$("newMobName").value.trim(),health:Number($("newMobHealth").value),speed:Number($("newMobSpeed").value),texture:texture};
   if(!creatorIdentifier(o.id))throw new Error("ID должен быть в формате namespace:id (строчные латинские буквы, цифры и _.-).");
-  if(!o.name)throw new Error("Укажи имя моба.");if(!Number.isFinite(o.health)||o.health<1||!Number.isFinite(o.damage)||o.damage<0||!Number.isFinite(o.speed)||o.speed<=0)throw new Error("Проверь здоровье, урон и скорость.");
+  if(!o.name)throw new Error("Укажи имя моба.");if(!Number.isFinite(o.health)||o.health<1||!Number.isFinite(o.speed)||o.speed<=0)throw new Error("Проверь здоровье, урон и скорость.");
   if(data.customMobs.some(x=>x.id===o.id))throw new Error("Такой ID моба уже есть.");data.customMobs.push(o);$("newMobTexture").value="";renderCreatorLists();
  }catch(e){alert(e.message);}
 };
@@ -621,17 +621,18 @@ $('mcaddon').onclick=async()=>{
    zip.file((file.pack==="RP"?rp:bp)+"/"+file.path,String(file.content||""));
   });
 
+  for(let i=0;i<data.buttons.length;i++){
    const image=data.buttons[i].image;
    if(!image) continue;
    const match=/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(image);
    if(!match) throw new Error("Не удалось прочитать картинку кнопки "+(i+1));
    zip.file(rp+"/textures/ui/button_"+(i+1)+".png",match[1],{base64:true});imageCount++;
   }
-  zip.file("README.txt","Addon Maker by НсП\nПакет: "+packName+"\nМинимальная версия Bedrock: 1.21.51\nAPI: @minecraft/server 1.13.0; @minecraft/server-ui 1.3.0\n\nИмпортируй .mcaddon в Minecraft и включи Behavior Pack и Resource Pack в настройках мира. Если Minecraft запрашивает разрешение для скриптов, включи его.\nКнопок: "+data.buttons.length+"\nИзображений: "+imageCount+"\n");
+  zip.file("README.txt","Addon Maker by НсП\nПакет: "+packName+"\nМинимальная версия Bedrock: 1.21.51\nAPI: @minecraft/server 1.13.0; @minecraft/server-ui 1.3.0\n\nИмпортируй .mcaddon в Minecraft и включи Behavior Pack и Resource Pack в настройках мира. Если Minecraft запрашивает разрешение для скриптов, включи его.\nКнопок меню: "+data.buttons.length+"\nКастомных предметов: "+data.customItems.length+"\nКастомных блоков: "+data.customBlocks.length+"\nКастомных мобов: "+data.customMobs.length+"\nЗамен текстур: "+data.textureReplacements.length+"\nДополнительных текстовых файлов: "+data.extraFiles.length+"\nИзображений: "+imageCount+"\n")
   const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:6}});
   const safeName=packName.replace(/[\\/:*?"<>|]/g,"_").trim().slice(0,70)||"my-addon";
   download(safeName+".mcaddon",blob,"application/octet-stream");
-  status.textContent="Готово: "+safeName+".mcaddon\nСобраны Behavior Pack и Resource Pack.\nКнопок: "+data.buttons.length+"; иконок: "+imageCount+".\nПосле импорта включи оба пакета в настройках мира.";
+  status.textContent="Готово: "+safeName+".mcaddon\nСобраны Behavior Pack и Resource Pack.\nКнопок меню: "+data.buttons.length+"; предметов: "+data.customItems.length+"; блоков: "+data.customBlocks.length+"; мобов: "+data.customMobs.length+"; замен текстур: "+data.textureReplacements.length+"; изображений всего: "+imageCount+".\nПосле импорта включи оба пакета в настройках мира.";
  }catch(error){status.textContent="Ошибка сборки: "+(error&&error.message?error.message:String(error));}
  finally{button.disabled=false;button.textContent="Экспорт готового .mcaddon";}
 };
