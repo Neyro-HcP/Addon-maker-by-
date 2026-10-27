@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Addon Maker by НсП</title>
+<style>
+:root{color-scheme:dark;--bg:#101116;--panel:#1b1d27;--line:#353847;--accent:#9775ff;--muted:#a7aabd}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#f5f5fa;font:15px system-ui,sans-serif}
+header{padding:17px;background:#171821;border-bottom:1px solid var(--line);font-weight:800;font-size:20px}
+header span{color:#ad94ff}
+main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;max-width:1250px;margin:auto;padding:16px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+h2{font-size:16px;margin:0 0 15px}
+h3{font-size:12px;color:#c4b4ff;text-transform:uppercase;margin:18px 0 10px}
+label{display:block;font-size:12px;color:#d0d1dc;margin:10px 0 5px}
+input,textarea,select{width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:#11131a;color:white;font:inherit}
+textarea{resize:vertical;min-height:65px}
+button{border:1px solid #49435f;background:#292538;color:white;border-radius:8px;padding:9px 12px;cursor:pointer;font:inherit}
+button.primary{background:#7654d5;border-color:#9274ed}
+button.delete{color:#ff9da5}
+button:disabled{opacity:.4}
+.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px}
+.cardhead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cardhead b{font-size:13px}
+.preview{background:radial-gradient(ellipse,#37304b,#15161d 75%);padding:18px;border-radius:10px;min-height:250px}
+.minecraft{max-width:450px;margin:25px auto;background:#c6c6c6;color:#222;padding:13px;border:3px solid #555;box-shadow:inset 2px 2px white,inset -2px -2px #777;font-family:Arial,sans-serif}
+#ptitle{text-align:center;font-weight:bold;font-size:18px;margin:3px 0 10px}
+#pdesc{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:10px}
+#pbuttons{display:flex;flex-direction:column;gap:5px}
+.mbtn{width:100%;display:flex;align-items:center;gap:9px;text-align:left;background:#737373;color:white;border:2px solid;border-color:#eee #333 #333 #eee;border-radius:0;min-height:43px}
+.mbtn img{width:28px;height:28px;object-fit:contain}
+.mbtn span{overflow-wrap:anywhere}
+small,.muted{font-size:12px;color:var(--muted)}
+footer{padding:15px;text-align:center;color:var(--muted);font-size:12px}
+@media(max-width:760px){main{grid-template-columns:1fr;padding:9px;gap:10px}section{padding:12px}header{font-size:17px}}
+</style>
+</head>
+<body>
+<header>Addon Maker <span>by: НсП</span></header>
+<main>
+<section>
+<h2>Редактор меню</h2>
+
+<h3>Окно</h3>
+<label for="title">Название окна</label>
+<input id="title" value="УПРАВЛЕНИЕ ИГРОКОМ" maxlength="100">
+
+<label for="description">Описание под названием</label>
+<textarea id="description">Выбери действие:</textarea>
+
+<h3>Открытие меню</h3>
+<label for="trigger">Способ открытия</label>
+<select id="trigger">
+<option value="item">Использование предмета</option>
+<option value="tag">Тег игрока</option>
+<option value="both">Предмет или тег</option>
+</select>
+
+<div id="itemsettings">
+<label for="itemid">ID предмета</label>
+<input id="itemid" value="minecraft:compass">
+</div>
+<div id="tagsettings" hidden>
+<label for="tagid">Тег игрока</label>
+<input id="tagid" value="menu_admin">
+</div>
+
+<h3>Кнопки меню</h3>
+<div id="buttons"></div>
+<div class="actions">
+<button id="add" class="primary">+ Добавить кнопку</button>
+<button id="save">Сохранить проект</button>
+<button id="load">Открыть сохранённый</button>
+</div>
+<div class="actions">
+<button id="json" class="primary">Экспорт JSON</button>
+<button id="js">Экспорт JS</button>
+</div>
+<p class="muted">Проект сохраняется в браузере. Экспортируй JSON как резервную копию.</p>
+<input type="file" id="importfile" accept=".json,application/json" hidden>
+</section>
+
+<section>
+<h2>Живой предпросмотр</h2>
+<p class="muted">Макет стандартного меню Minecraft Bedrock.</p>
+<div class="preview">
+<div class="minecraft">
+<div id="ptitle"></div>
+<div id="pdesc"></div>
+<div id="pbuttons"></div>
+</div>
+</div>
+<h3>Информация</h3>
+<p class="muted">Заголовок, описание, названия кнопок и картинки обновляются сразу. Отдельные описания кнопок в стандартном ActionFormData Minecraft не поддерживаются.</p>
+</section>
+</main>
+<footer>Addon Maker by НсП · Web Edition</footer>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+let nextId=4;
+let data={
+ title:'УПРАВЛЕНИЕ ИГРОКОМ',
+ description:'Выбери действие:',
+ trigger:'item',
+ itemid:'minecraft:compass',
+ tagid:'menu_admin',
+ buttons:[
+  {id:1,label:'Сесть',image:'',action:'message',value:'Вы выбрали действие: сесть'},
+  {id:2,label:'Прыгнуть',image:'',action:'message',value:'Вы выбрали действие: прыгнуть'},
+  {id:3,label:'Телепорт',image:'',action:'teleport',value:'0 64 0'}
+ ]
+};
+
+function download(name,text,type){
+ const blob=new Blob([text],{type});
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement('a');
+ a.href=url;a.download=name;a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function readForm(){
+ data.title=$('title').value;
+ data.description=$('description').value;
+ data.trigger=$('trigger').value;
+ data.itemid=$('itemid').value;
+ data.tagid=$('tagid').value;
+}
+function render(){
+ $('title').value=data.title;
+ $('description').value=data.description;
+ $('trigger').value=data.trigger;
+ $('itemid').value=data.itemid;
+ $('tagid').value=data.tagid;
+ $('itemsettings').hidden=data.trigger==='tag';
+ $('tagsettings').hidden=data.trigger==='item';
+ $('ptitle').textContent=data.title;
+ $('pdesc').textContent=data.description;
+
+ const list=$('buttons');
+ list.replaceChildren();
+
+ data.buttons.forEach((b,i)=>{
+  const card=document.createElement('div');
+  card.className='card';
+  const head=document.createElement('div');
+  head.className='cardhead';
+  const name=document.createElement('b');
+  name.textContent='Кнопка '+(i+1);
+  head.append(name);
+
+  const remove=document.createElement('button');
+  remove.className='delete';
+  remove.textContent='Удалить';
+  remove.onclick=()=>{
+   data.buttons=data.buttons.filter(x=>x.id!==b.id);
+   render();
+  };
+  head.append(remove);
+  card.append(head);
+
+  function field(label,value,type,change){
+   const l=document.createElement('label');l.textContent=label;
+   const el=document.createElement(type==='textarea'?'textarea':'input');
+   if(type!=='textarea')el.type=type||'text';
+   if(type==='file')el.accept='image/*';
+   else el.value=value||'';
+   el.onchange=()=>change(el);
+   if(type!=='file')el.oninput=()=>change(el);
+   card.append(l,el);
+  }
+
+  field('Название кнопки',b.label,'text',el=>{b.label=el.value;preview()});
+  field('Изображение кнопки', '', 'file',el=>{
+   const f=el.files[0];if(!f)return;
+   if(f.size>2*1024*1024){alert('Выбери картинку до 2 МБ');return}
+   const reader=new FileReader();
+   reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+     const canvas=document.createElement('canvas');
+     canvas.width=canvas.height=64;
+     const ctx=canvas.getContext('2d');
+     const scale=Math.min(64/img.width,64/img.height);
+     const w=img.width*scale,h=img.height*scale;
+     ctx.drawImage(img,(64-w)/2,(64-h)/2,w,h);
+     b.image=canvas.toDataURL('image/png');
+     preview();
+    };
+    img.src=reader.result;
+   };
+   reader.readAsDataURL(f);
+  });
+
+  const l=document.createElement('label');l.textContent='Действие';
+  const select=document.createElement('select');
+  [['message','Сообщение'],['command','Команда'],['give','Выдать предмет'],['teleport','Телепорт']].forEach(([v,t])=>{
+   const op=document.createElement('option');op.value=v;op.textContent=t;select.append(op);
+  });
+  select.value=b.action;
+  select.onchange=()=>{b.action=select.value;};
+  card.append(l,select);
+
+  field('Параметр действия',b.value,'text',el=>b.value=el.value);
+  list.append(card);
+ });
+ preview();
+}
+function preview(){
+ $('ptitle').textContent=data.title;
+ $('pdesc').textContent=data.description;
+ const host=$('pbuttons');host.replaceChildren();
+ data.buttons.forEach(b=>{
+  const btn=document.createElement('button');btn.className='mbtn';
+  if(b.image){
+   const img=document.createElement('img');img.src=b.image;img.alt='';btn.append(img);
+  }
+  const label=document.createElement('span');label.textContent=b.label;
+  btn.append(label);
+  btn.onclick=()=>alert('Предпросмотр: '+b.label);
+  host.append(btn);
+ });
+}
+['title','description','trigger','itemid','tagid'].forEach(id=>{
+ $(id).addEventListener('input',()=>{readForm();renderTriggerOnly();preview()});
+});
+function renderTriggerOnly(){
+ $('itemsettings').hidden=data.trigger==='tag';
+ $('tagsettings').hidden=data.trigger==='item';
+}
+$('add').onclick=()=>{
+ data.buttons.push({id:nextId++,label:'Новая кнопка',image:'',action:'message',value:''});
+ render();
+};
+$('save').onclick=()=>{
+ readForm();
+ try{localStorage.setItem('nsp-addon-maker',JSON.stringify(data));alert('Проект сохранён');}
+ catch(e){alert('Не удалось сохранить. Экспортируй JSON.');}
+};
+$('load').onclick=()=>{
+ const s=localStorage.getItem('nsp-addon-maker');
+ if(!s){alert('Сохранённого проекта нет');return}
+ try{data=JSON.parse(s);nextId=Math.max(1,...data.buttons.map(b=>b.id+1));render();}
+ catch(e){alert('Ошибка сохранённого проекта');}
+};
+$('json').onclick=()=>{
+ readForm();
+ download('addon-maker-project.json',JSON.stringify(data,null,2),'application/json');
+};
+$('importfile').onchange=e=>{
+ const f=e.target.files[0];if(!f)return;
+ const r=new FileReader();
+ r.onload=()=>{
+  try{
+   const d=JSON.parse(r.result);
+   if(!Array.isArray(d.buttons))throw Error('invalid');
+   data=d;nextId=Math.max(1,...data.buttons.map(b=>b.id+1));render();
+  }catch(err){alert('Некорректный файл проекта JSON');}
+ };
+ r.readAsText(f);e.target.value='';
+};
+$('load').addEventListener('contextmenu',e=>e.preventDefault());
+$('importfile').hidden=true;
+$('openProjectHack');
+document.querySelector('button#load').insertAdjacentHTML('afterend',' <button id="importBtn">Импорт JSON</button>');
+$('importBtn').onclick=()=>$('importfile').click();
+
+$('js').onclick=()=>{
+ readForm();
+ const config=JSON.stringify(data,null,2);
+ const code=`import { world } from "@minecraft/server";
+import { ActionFormData } from "@minecraft/server-ui";
+
+const CONFIG = ${config};
+
+async function showMenu(player) {
+ const form = new ActionFormData()
+  .title(CONFIG.title)
+  .body(CONFIG.description);
+
+ for (const button of CONFIG.buttons) {
+  form.button(button.label);
+ }
+
+ const result = await form.show(player);
+ if (result.canceled || result.selection === undefined) return;
+
+ const b = CONFIG.buttons[result.selection];
+ try {
+  if (b.action === "message") player.sendMessage(b.value);
+  if (b.action === "command") player.runCommand(b.value.replace(/^\\\\//, ""));
+  if (b.action === "give") player.runCommand("give @s " + b.value);
+  if (b.action === "teleport") {
+   const p = b.value.trim().split(/\\\\s+/).map(Number);
+   if (p.length === 3 && p.every(Number.isFinite))
+    player.teleport({x:p[0],y:p[1],z:p[2]});
+  }
+ } catch (e) {
+  player.sendMessage("Ошибка действия меню: " + String(e));
+ }
+}
+
+world.afterEvents.itemUse.subscribe(event => {
+ if (CONFIG.trigger === "tag") return;
+ if (event.itemStack.typeId !== CONFIG.itemid) return;
+ showMenu(event.source).catch(() => {});
+});
+
+const shown = new Set();
+import { system } from "@minecraft/server";
+system.runInterval(() => {
+ if (CONFIG.trigger === "item") return;
+ for (const player of world.getAllPlayers()) {
+  const hasTag = player.hasTag(CONFIG.tagid);
+  if (hasTag && !shown.has(player.id)) {
+   shown.add(player.id);
+   showMenu(player).catch(() => {});
+  }
+  if (!hasTag) shown.delete(player.id);
+ }
+}, 10);
+`;
+ download('main.js',code,'text/javascript');
+};
+render();
+</script>
+</body>
+</html>
