@@ -106,6 +106,15 @@ footer{padding:15px;text-align:center;color:var(--muted);font-size:12px}
 <h3>Информация</h3>
 <p class="muted">Заголовок, описание, названия кнопок и картинки обновляются сразу. Отдельные описания кнопок в стандартном ActionFormData Minecraft не поддерживаются.</p>
 <div class="creator-panel">
+ <h3>Импорт и редактор готового аддона</h3><p class="creator-help">Загрузи .mcaddon, .mcpack или ZIP — файлы обрабатываются прямо в браузере. Текстовые JSON/JS/MCFUNCTION можно редактировать, а PNG, модели, звуки и другие файлы заменять. manifest.json и scripts/main.js создаются конструктором автоматически.</p>
+ <label for="archiveInput">Файл аддона (.mcaddon / .mcpack / .zip)</label><input id="archiveInput" type="file" accept=".mcaddon,.mcpack,.zip,application/zip">
+ <p class="creator-help" id="archiveStatus">Пока архив не загружен.</p>
+ <label for="importedFileSelect">Файл для редактирования</label><select id="importedFileSelect"><option value="">Сначала импортируй архив</option></select>
+ <label for="importedFileContent">Содержимое текстового файла</label><textarea id="importedFileContent" class="codebox" spellcheck="false" placeholder="Выбери текстовый файл из архива"></textarea>
+ <div class="actions"><button id="saveImportedText" class="primary">Сохранить текст</button><button id="deleteImportedFile">Удалить выбранный файл</button></div>
+ <label for="replaceImportedBinary">Заменить выбранный файл (PNG, звук, модель и т. д.)</label><input id="replaceImportedBinary" type="file">
+ <div class="actions"><button id="replaceImportedFile" class="primary">Заменить файл</button></div><div id="importedFilesList"></div></div>
+<div class="creator-panel">
  <h3>Конструктор предметов</h3><p class="creator-help">Создаёт новый предмет с PNG-значком, ID, названием, размером стака и прочностью. PNG до 2 МБ. Для сложных механик используй редактор файлов ниже.</p>
  <div class="creator-grid"><div><label for="newItemId">ID (namespace:id)</label><input id="newItemId" value="addon:crystal"></div><div><label for="newItemName">Название</label><input id="newItemName" value="Кристалл"></div>
  <div><label for="newItemCategory">Раздел инвентаря</label><select id="newItemCategory"><option value="items">Предметы</option><option value="equipment">Снаряжение</option><option value="nature">Природа</option><option value="construction">Строительство</option></select></div><div><label for="newItemStack">Максимум в стаке</label><select id="newItemStack"><option value="1">1</option><option value="16">16</option><option value="64" selected>64</option></select></div><div><label for="newItemDurability">Прочность (0 = нет)</label><input id="newItemDurability" type="number" min="0" max="10000" value="0"></div><div><label for="newItemTexture">PNG-значок</label><input id="newItemTexture" type="file" accept="image/png"></div></div>
@@ -150,6 +159,7 @@ let data={
  customMobs:[],
  textureReplacements:[],
  extraFiles:[],
+ importedFiles:[],
  buttons:[
   {id:1,label:'Сесть',image:'',action:'message',value:'Вы выбрали действие: сесть'},
   {id:2,label:'Прыгнуть',image:'',action:'message',value:'Вы выбрали действие: прыгнуть'},
@@ -179,6 +189,7 @@ function render(){
  data.customMobs=Array.isArray(data.customMobs)?data.customMobs:[];
  data.textureReplacements=Array.isArray(data.textureReplacements)?data.textureReplacements:[];
  data.extraFiles=Array.isArray(data.extraFiles)?data.extraFiles:[];
+ data.importedFiles=Array.isArray(data.importedFiles)?data.importedFiles:[];
  $('packname').value=data.packname||'Addon Maker — мой аддон';
  $('packdescription').value=data.packdescription||'Создано в Addon Maker by НсП';
  $('title').value=data.title;
@@ -260,6 +271,7 @@ function render(){
  });
  preview();
  renderCreatorLists();
+ renderImportedFiles();
 }
 function preview(){
  $('ptitle').textContent=data.title;
@@ -454,6 +466,88 @@ function creatorCard(host,title){
 function removeCreatorButton(container,onClick){
  const button=document.createElement("button");button.className="delete";button.textContent="Удалить";button.onclick=onClick;container.append(button);
 }
+
+function importedIsText(path){
+ return /\.(json|js|ts|mcfunction|lang|txt|molang|material|xml|yaml|yml|properties|fsh|vsh|glsl|html|css)$/i.test(path);
+}
+function renderImportedFiles(){
+ const select=$("importedFileSelect"), list=$("importedFilesList");
+ const previous=select.value;
+ select.replaceChildren();
+ const placeholder=document.createElement("option");placeholder.value="";placeholder.textContent=data.importedFiles.length?"Выбери файл":"Архив не содержит импортированных файлов";select.append(placeholder);
+ data.importedFiles.forEach((file,i)=>{const o=document.createElement("option");o.value=String(i);o.textContent=(file.pack||"BP")+" / "+file.path;select.append(o);});
+ if(previous && Number(previous)<data.importedFiles.length)select.value=previous;
+ const file=data.importedFiles[Number(select.value)];
+ $("importedFileContent").value=file&&!file.isBase64?String(file.content||""):"";
+ $("importedFileContent").disabled=!file||file.isBase64;
+ $("saveImportedText").disabled=!file||file.isBase64;
+ list.replaceChildren();
+ const summary=document.createElement("p");summary.className="creator-help";summary.textContent="Файлов в редакторе: "+data.importedFiles.length+". Текст редактируется выше; любой файл можно заменить через поле ниже.";list.append(summary);
+}
+$("archiveInput").addEventListener("change",async e=>{
+ const f=e.target.files&&e.target.files[0];if(!f)return;
+ $("archiveStatus").textContent="Читаю архив...";
+ try{
+  if(typeof JSZip==="undefined")throw new Error("Не загрузилась ZIP-библиотека. Проверь интернет и обнови страницу.");
+  const archive=await JSZip.loadAsync(f);
+  const entries=Object.values(archive.files).filter(x=>!x.dir);
+  const manifestRoots={};
+  for(const entry of entries){
+   if(entry.name.split("/").pop().toLowerCase()!=="manifest.json")continue;
+   try{
+    const manifest=JSON.parse(await entry.async("string"));
+    const types=(manifest.modules||[]).map(m=>m.type);
+    const pack=types.includes("resources")?"RP":"BP";
+    const root=entry.name.includes("/")?entry.name.slice(0,entry.name.lastIndexOf("/")):"";
+    manifestRoots[root]=pack;
+   }catch(_){}
+  }
+  const imported=[];
+  for(const entry of entries){
+   if(entry.name.split("/").pop().toLowerCase()==="manifest.json"||entry.name.endsWith("/scripts/main.js")||entry.name==="scripts/main.js")continue;
+   let root="",pack="BP";
+   const candidates=Object.keys(manifestRoots).sort((a,b)=>b.length-a.length);
+   for(const candidate of candidates){
+    if(candidate===""||entry.name===candidate||entry.name.startsWith(candidate+"/")){root=candidate;pack=manifestRoots[candidate];break;}
+   }
+   const path=root?entry.name.slice(root.length).replace(/^\/+/,""):entry.name;
+   if(!path||path.includes(".."))continue;
+   const isText=importedIsText(path);
+   imported.push({pack,path,isBase64:!isText,content:await entry.async(isText?"string":"base64")});
+  }
+  if(!imported.length)throw new Error("Не нашёл файлов для импорта.");
+  data.importedFiles=imported;
+  renderImportedFiles();
+  $("archiveStatus").textContent="Импортировано "+imported.length+" файлов из "+f.name+". Теперь редактируй их и экспортируй .mcaddon.";
+ }catch(err){$("archiveStatus").textContent="Ошибка импорта: "+(err&&err.message?err.message:String(err));}
+ finally{e.target.value="";}
+});
+$("importedFileSelect").addEventListener("change",renderImportedFiles);
+$("saveImportedText").onclick=()=>{
+ const i=Number($("importedFileSelect").value),file=data.importedFiles[i];
+ if(!file||file.isBase64)return;
+ file.content=$("importedFileContent").value;
+ $("archiveStatus").textContent="Сохранён текст: "+file.path;
+};
+$("deleteImportedFile").onclick=()=>{
+ const i=Number($("importedFileSelect").value);
+ if(!Number.isInteger(i)||!data.importedFiles[i])return;
+ const name=data.importedFiles[i].path;
+ data.importedFiles.splice(i,1);renderImportedFiles();
+ $("archiveStatus").textContent="Удалён файл: "+name;
+};
+$("replaceImportedFile").onclick=async()=>{
+ const i=Number($("importedFileSelect").value),file=data.importedFiles[i],replacement=$("replaceImportedBinary").files[0];
+ if(!file||!replacement){$("archiveStatus").textContent="Выбери файл из архива и новый файл для замены.";return;}
+ try{
+  const bytes=await replacement.arrayBuffer();
+  const binary=Array.from(new Uint8Array(bytes),b=>String.fromCharCode(b)).join("");
+  file.content=btoa(binary);file.isBase64=true;
+  $("archiveStatus").textContent="Файл заменён: "+file.path+" ← "+replacement.name;
+  renderImportedFiles();
+ }catch(err){$("archiveStatus").textContent="Не удалось заменить файл: "+String(err);}
+};
+
 function renderCreatorLists(){
  const specs=[
   ["customItemsList",data.customItems,"Предмет",function(o,c){
@@ -566,6 +660,11 @@ $('mcaddon').onclick=async()=>{
   zip.file(bp+"/scripts/main.js",buildRuntimeScript(config));
   zip.file(rp+"/manifest.json",JSON.stringify(rpManifest,null,2));
 
+  data.importedFiles.forEach(file=>{
+   if(!file.path||file.path.includes("..")||file.path.startsWith("/")||file.path.indexOf(String.fromCharCode(92))>=0)throw new Error("Небезопасный импортированный путь: "+file.path);
+   const target=(file.pack==="RP"?rp:bp)+"/"+file.path;
+   if(file.isBase64)zip.file(target,String(file.content||""),{base64:true});else zip.file(target,String(file.content||""));
+  });
   let imageCount=0;
   function writePng(path,value,label){
    const source=String(value||""),prefix="data:image/png;base64,";
