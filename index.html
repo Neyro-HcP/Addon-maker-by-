@@ -44,6 +44,12 @@ footer{padding:15px;text-align:center;color:var(--muted);font-size:12px}
 <section>
 <h2>Редактор меню</h2>
 
+<h3>Пакет Minecraft</h3>
+<label for="packname">Название аддона в Minecraft</label>
+<input id="packname" value="Addon Maker — мой аддон" maxlength="100">
+<label for="packdescription">Описание аддона</label>
+<textarea id="packdescription">Создано в Addon Maker by НсП</textarea>
+
 <h3>Окно</h3>
 <label for="title">Название окна</label>
 <input id="title" value="УПРАВЛЕНИЕ ИГРОКОМ" maxlength="100">
@@ -79,6 +85,9 @@ footer{padding:15px;text-align:center;color:var(--muted);font-size:12px}
 <button id="json" class="primary">Экспорт JSON</button>
 <button id="js">Экспорт JS</button>
 </div>
+<div class="actions"><button id="mcaddon" class="primary">Экспорт готового .mcaddon</button></div>
+<p class="muted">Экспорт включает Behavior Pack, Resource Pack, манифесты и скрипт. Для этой сборки указаны @minecraft/server 1.13.0 и @minecraft/server-ui 1.3.0 (ориентир — Bedrock 1.21.51).</p>
+<p class="muted" id="mcaddonstatus">Готово к сборке.</p>
 <p class="muted">Проект сохраняется в браузере. Экспортируй JSON как резервную копию.</p>
 <input type="file" id="importfile" accept=".json,application/json" hidden>
 </section>
@@ -99,11 +108,14 @@ footer{padding:15px;text-align:center;color:var(--muted);font-size:12px}
 </main>
 <footer>Addon Maker by НсП · Web Edition</footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
 let nextId=4;
 let data={
+ packname:'Addon Maker — мой аддон',
+ packdescription:'Создано в Addon Maker by НсП',
  title:'УПРАВЛЕНИЕ ИГРОКОМ',
  description:'Выбери действие:',
  trigger:'item',
@@ -124,6 +136,8 @@ function download(name,text,type){
  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function readForm(){
+ data.packname=$('packname').value.trim()||'Мой аддон';
+ data.packdescription=$('packdescription').value;
  data.title=$('title').value;
  data.description=$('description').value;
  data.trigger=$('trigger').value;
@@ -131,6 +145,8 @@ function readForm(){
  data.tagid=$('tagid').value;
 }
 function render(){
+ $('packname').value=data.packname||'Addon Maker — мой аддон';
+ $('packdescription').value=data.packdescription||'Создано в Addon Maker by НсП';
  $('title').value=data.title;
  $('description').value=data.description;
  $('trigger').value=data.trigger;
@@ -225,7 +241,7 @@ function preview(){
   host.append(btn);
  });
 }
-['title','description','trigger','itemid','tagid'].forEach(id=>{
+['packname','packdescription','title','description','trigger','itemid','tagid'].forEach(id=>{
  $(id).addEventListener('input',()=>{readForm();renderTriggerOnly();preview()});
 });
 function renderTriggerOnly(){
@@ -326,6 +342,91 @@ system.runInterval(() => {
 `;
  download('main.js',code,'text/javascript');
 };
+
+function buildRuntimeScript(config){
+ return [
+  'import { world, system } from "@minecraft/server";',
+  'import { ActionFormData } from "@minecraft/server-ui";',
+  '',
+  'const CONFIG = '+JSON.stringify(config,null,2)+';',
+  '',
+  'function normalizedId(id){ return id && id.includes(":") ? id : "minecraft:"+id; }',
+  'async function showMenu(player){',
+  ' const form = new ActionFormData().title(CONFIG.title).body(CONFIG.description);',
+  ' for(const button of CONFIG.buttons){ if(button.icon) form.button(button.label,button.icon); else form.button(button.label); }',
+  ' const result = await form.show(player);',
+  ' if(result.canceled || result.selection === undefined) return;',
+  ' const button = CONFIG.buttons[result.selection]; if(!button) return;',
+  ' try {',
+  '  if(button.action === "message") player.sendMessage(button.value);',
+  '  else if(button.action === "command"){ const command=button.value.replace(/^\\/+/, "").trim(); if(command) await player.runCommand(command); }',
+  '  else if(button.action === "give"){ const item=button.value.trim(); if(item) await player.runCommand("give @s "+item); }',
+  '  else if(button.action === "teleport"){ const p=button.value.trim().split(/\\s+/).map(Number); if(p.length===3 && p.every(Number.isFinite)) player.teleport({x:p[0],y:p[1],z:p[2]}); else player.sendMessage("Укажи координаты в формате: X Y Z"); }',
+  ' } catch(error){ player.sendMessage("Не удалось выполнить действие: "+String(error)); }',
+  '}',
+  'world.afterEvents.itemUse.subscribe(event=>{',
+  ' const player=event.source;',
+  ' if(!player || player.typeId!=="minecraft:player" || CONFIG.trigger==="tag") return;',
+  ' if(event.itemStack.typeId!==normalizedId(CONFIG.itemid)) return;',
+  ' showMenu(player).catch(error=>player.sendMessage("Ошибка меню: "+String(error)));',
+  '});',
+  'const playersWithTag=new Set();',
+  'system.runInterval(()=>{',
+  ' if(CONFIG.trigger==="item") return;',
+  ' for(const player of world.getAllPlayers()){',
+  '  const hasTag=player.hasTag(CONFIG.tagid);',
+  '  if(hasTag && !playersWithTag.has(player.id)){ playersWithTag.add(player.id); showMenu(player).catch(error=>player.sendMessage("Ошибка меню: "+String(error))); }',
+  '  else if(!hasTag) playersWithTag.delete(player.id);',
+  ' }',
+  '},10);',
+  ''
+ ].join('\n');
+}
+function createAddonUuid(){
+ if(globalThis.crypto && typeof crypto.randomUUID==="function") return crypto.randomUUID();
+ const bytes=new Uint8Array(16);
+ if(globalThis.crypto && crypto.getRandomValues) crypto.getRandomValues(bytes);
+ else for(let i=0;i<16;i++) bytes[i]=Math.floor(Math.random()*256);
+ bytes[6]=(bytes[6]&15)|64; bytes[8]=(bytes[8]&63)|128;
+ const h=Array.from(bytes,v=>v.toString(16).padStart(2,"0")).join("");
+ return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);
+}
+$('mcaddon').onclick=async()=>{
+ readForm();
+ const status=$('mcaddonstatus');
+ if(typeof JSZip==="undefined"){status.textContent="Не загрузилась ZIP-библиотека. Проверь интернет и обнови страницу.";return;}
+ if(!data.buttons.length){status.textContent="Добавь хотя бы одну кнопку.";return;}
+ if(data.buttons.some(b=>!String(b.label||"").trim())){status.textContent="У каждой кнопки должно быть название.";return;}
+ if(data.trigger!=="tag" && !data.itemid.trim()){status.textContent="Укажи ID предмета для открытия меню.";return;}
+ if(data.trigger!=="item" && !data.tagid.trim()){status.textContent="Укажи тег игрока для открытия меню.";return;}
+ const button=$('mcaddon');button.disabled=true;button.textContent="Сборка...";
+ try{
+  const zip=new JSZip(), bp="AddonMaker_BP", rp="AddonMaker_RP", version=[1,0,0];
+  const bpHeader=createAddonUuid(),bpData=createAddonUuid(),bpScript=createAddonUuid(),rpHeader=createAddonUuid(),rpModule=createAddonUuid();
+  const packName=data.packname||"Мой аддон", packDescription=data.packdescription||"";
+  const bpManifest={format_version:2,header:{name:packName+" — Behavior Pack",description:packDescription,uuid:bpHeader,version:version,min_engine_version:[1,21,51]},modules:[{type:"data",uuid:bpData,version:version},{type:"script",language:"javascript",uuid:bpScript,version:version,entry:"scripts/main.js"}],dependencies:[{module_name:"@minecraft/server",version:"1.13.0"},{module_name:"@minecraft/server-ui",version:"1.3.0"},{uuid:rpHeader,version:version}]};
+  const rpManifest={format_version:2,header:{name:packName+" — Resource Pack",description:packDescription,uuid:rpHeader,version:version,min_engine_version:[1,21,51]},modules:[{type:"resources",uuid:rpModule,version:version}]};
+  const config={title:data.title,description:data.description,trigger:data.trigger,itemid:data.itemid,tagid:data.tagid,buttons:data.buttons.map((b,i)=>({label:b.label,action:b.action,value:b.value,icon:b.image?"textures/ui/button_"+(i+1):""}))};
+  zip.file(bp+"/manifest.json",JSON.stringify(bpManifest,null,2));
+  zip.file(bp+"/scripts/main.js",buildRuntimeScript(config));
+  zip.file(rp+"/manifest.json",JSON.stringify(rpManifest,null,2));
+  let imageCount=0;
+  for(let i=0;i<data.buttons.length;i++){
+   const image=data.buttons[i].image;
+   if(!image) continue;
+   const match=/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(image);
+   if(!match) throw new Error("Не удалось прочитать картинку кнопки "+(i+1));
+   zip.file(rp+"/textures/ui/button_"+(i+1)+".png",match[1],{base64:true});imageCount++;
+  }
+  zip.file("README.txt","Addon Maker by НсП\nПакет: "+packName+"\nМинимальная версия Bedrock: 1.21.51\nAPI: @minecraft/server 1.13.0; @minecraft/server-ui 1.3.0\n\nИмпортируй .mcaddon в Minecraft и включи Behavior Pack и Resource Pack в настройках мира. Если Minecraft запрашивает разрешение для скриптов, включи его.\nКнопок: "+data.buttons.length+"\nИзображений: "+imageCount+"\n");
+  const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:6}});
+  const safeName=packName.replace(/[\\/:*?"<>|]/g,"_").trim().slice(0,70)||"my-addon";
+  download(safeName+".mcaddon",blob,"application/octet-stream");
+  status.textContent="Готово: "+safeName+".mcaddon\nСобраны Behavior Pack и Resource Pack.\nКнопок: "+data.buttons.length+"; иконок: "+imageCount+".\nПосле импорта включи оба пакета в настройках мира.";
+ }catch(error){status.textContent="Ошибка сборки: "+(error&&error.message?error.message:String(error));}
+ finally{button.disabled=false;button.textContent="Экспорт готового .mcaddon";}
+};
+
 render();
 </script>
 </body>
