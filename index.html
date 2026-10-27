@@ -680,6 +680,13 @@ $('mcaddon').onclick=async()=>{
   }
   const itemAtlas={resource_pack_name:packName,texture_name:"atlas.items",texture_data:{}};
   const blockAtlas={resource_pack_name:packName,texture_name:"atlas.terrain",padding:8,num_mip_levels:4,texture_data:{}};
+  for(const [path,target] of [["textures/item_texture.json",itemAtlas],["textures/terrain_texture.json",blockAtlas]]){
+   const imported=data.importedFiles.find(file=>file.pack==="RP"&&file.path===path&&!file.isBase64);
+   if(imported&&imported.content){
+    try{const parsed=JSON.parse(imported.content);Object.assign(target.texture_data,parsed.texture_data||{});}
+    catch(error){throw new Error("Не удалось объединить "+path+" из импортированного аддона: "+String(error.message||error));}
+   }
+  }
   const translations=[];
   data.customItems.forEach(item=>{
    const stem=checkedId(item,"предмета");if(!item.texture)throw new Error("Добавь PNG для предмета "+item.id);
