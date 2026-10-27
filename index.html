@@ -477,7 +477,7 @@ function renderImportedFiles(){
  const placeholder=document.createElement("option");placeholder.value="";placeholder.textContent=data.importedFiles.length?"Выбери файл":"Архив не содержит импортированных файлов";select.append(placeholder);
  data.importedFiles.forEach((file,i)=>{const o=document.createElement("option");o.value=String(i);o.textContent=(file.pack||"BP")+" / "+file.path;select.append(o);});
  if(previous && Number(previous)<data.importedFiles.length)select.value=previous;
- const file=data.importedFiles[Number(select.value)];
+ const file=select.value===""?null:data.importedFiles[Number(select.value)];
  $("importedFileContent").value=file&&!file.isBase64?String(file.content||""):"";
  $("importedFileContent").disabled=!file||file.isBase64;
  $("saveImportedText").disabled=!file||file.isBase64;
@@ -524,20 +524,23 @@ $("archiveInput").addEventListener("change",async e=>{
 });
 $("importedFileSelect").addEventListener("change",renderImportedFiles);
 $("saveImportedText").onclick=()=>{
- const i=Number($("importedFileSelect").value),file=data.importedFiles[i];
+ const selected=$("importedFileSelect").value;
+ const i=selected===""?-1:Number(selected),file=data.importedFiles[i];
  if(!file||file.isBase64)return;
  file.content=$("importedFileContent").value;
  $("archiveStatus").textContent="Сохранён текст: "+file.path;
 };
 $("deleteImportedFile").onclick=()=>{
- const i=Number($("importedFileSelect").value);
+ const selected=$("importedFileSelect").value;
+ const i=selected===""?-1:Number(selected);
  if(!Number.isInteger(i)||!data.importedFiles[i])return;
  const name=data.importedFiles[i].path;
  data.importedFiles.splice(i,1);renderImportedFiles();
  $("archiveStatus").textContent="Удалён файл: "+name;
 };
 $("replaceImportedFile").onclick=async()=>{
- const i=Number($("importedFileSelect").value),file=data.importedFiles[i],replacement=$("replaceImportedBinary").files[0];
+ const selected=$("importedFileSelect").value;
+ const i=selected===""?-1:Number(selected),file=data.importedFiles[i],replacement=$("replaceImportedBinary").files[0];
  if(!file||!replacement){$("archiveStatus").textContent="Выбери файл из архива и новый файл для замены.";return;}
  try{
   const bytes=await replacement.arrayBuffer();
